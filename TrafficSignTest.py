@@ -16,7 +16,9 @@ with open(testing_file, mode='rb') as f:
 X_train, y_train = train['features'], train['labels']
 X_valid, y_valid = valid['features'], valid['labels']
 X_test, y_test = test['features'], test['labels']
+
 #%%
+
 ### Replace each question mark with the appropriate value. 
 ### Use python, pandas or numpy methods rather than hard coding the results
 import skimage.data
@@ -44,6 +46,9 @@ print("Image data shape =", image_shape)
 print("Number of classes =", n_classes)
 
 #%%
+### Data exploration visualization code goes here.
+### Feel free to use as many code cells as needed.
+import matplotlib.pyplot as plt
 
 import random
 from skimage.transform import SimilarityTransform
@@ -76,28 +81,35 @@ def Preprocess_all(images):
 # Sample images to show
 def showDistortEffect(x):
     img_ind=random.randint(0,n_train)
-    plt.subplot(1,2,1)
+    
+    plt.subplot(1,3,1)
     plt.axis('off')
+    plt.tight_layout(pad=3.0)
     plt.imshow(x[img_ind])
     plt.title('original_Img')
-    plt.subplot(1,2,2)
+    plt.subplot(1,3,2)
     plt.axis('off')
-    plt.imshow(exposureAdjust(distort(x[img_ind])))
-    plt.title('distorted_Img')
-    plt.suptitle("Distorted Comparison")
+    img_ind_dist=distort(x[img_ind])
+    plt.axis('off')
+    plt.tight_layout(pad=3.0)
+    plt.imshow(img_ind_dist)
+    plt.title('Distortion')
+    img_ind_expos=exposureAdjust(img_ind_dist)
+    plt.subplot(1,3,3)
+    plt.axis('off')
+    plt.tight_layout(pad=3.0)
+    plt.imshow(img_ind_expos)
+    plt.title('Exposure Adjustment')
     plt.show()
     return
 
 showDistortEffect(X_train)
-print("Type is ",X_train[0].dtype," and ", exposureAdjust(distort(X_train[0])).dtype)
+
 #%%
-
-
 # create Artificial data
 X_train = np.concatenate((X_train, Preprocess_all(X_train)))
 y_train = np.concatenate((y_train, y_train))
 print("After adding fake data, X_train's shape is ", X_train.shape[0])
-
 
 #%%
 
@@ -134,6 +146,7 @@ def display_images_and_labels(_x,y):
 display_images_and_labels(X_train, y_train)
 
 #%%
+
 ### Preprocess the data here. It is required to normalize the data. Other preprocessing steps could include 
 ### converting to grayscale, etc.
 ### Feel free to use as many code cells as needed.
@@ -160,6 +173,7 @@ def normalize(x):
 keep_prob = tf.placeholder(tf.float32)
 
 #%%
+
 ### Define your architecture here.
 ### Feel free to use as many code cells as needed.
 from tensorflow.contrib.layers import flatten
@@ -240,15 +254,15 @@ training_operation = optimizer.minimize(loss_operation)
 correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(one_hot_y, 1))
 accuracy_operation = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 saver = tf.train.Saver()
+
+#%%
+
 ### Train your model here.
 ### Calculate and report the accuracy on the training and validation set.
 ### Once a final model architecture is selected, 
 ### the accuracy on the test set should be calculated and reported as well.
 ### Feel free to use as many code cells as needed.
 # evaluation
-
-
-#%%
 def evaluate(X_data, y_data):
     num_examples = len(X_data)
     total_accuracy = 0
@@ -268,13 +282,17 @@ with tf.Session() as sess:
     print()
     for i in range(EPOCHS):
         X_train, y_train = shuffle(X_train, y_train)
+        train_ac=None
         for offset in range(0, num_examples, BATCH_SIZE):
+            global train_ac
             end = offset + BATCH_SIZE
             batch_x, batch_y = X_train[offset:end], y_train[offset:end]
-            sess.run(training_operation, feed_dict={x: batch_x, y: batch_y, keep_prob: 0.5})
-            
+            _,train_ac=sess.run((training_operation,accuracy_operation), 
+                                      feed_dict={x: batch_x, y: batch_y, keep_prob: 0.5})
+        
         validation_accuracy = evaluate(X_valid, y_valid)
         print("EPOCH {} ...".format(i+1))
+        print("Train accuracy is {:.3f}".format(train_ac))
         print("Validation Accuracy = {:.3f}".format(validation_accuracy))
         print()
     
@@ -288,8 +306,9 @@ with tf.Session() as sess:
 
     test_accuracy = evaluate(X_test, y_test)
     print("Test Accuracy = {:.3f}".format(test_accuracy))
-
+    
 #%%
+
 ### Load the images and plot them here.
 ### Feel free to use as many code cells as needed.
 import os
@@ -304,7 +323,6 @@ def load_data(data_dir):
         image_dir=os.path.join(data_dir, f)
         temp_img=skimage.transform.resize(skimage.data.imread(image_dir), (32, 32), mode='constant')
         images.append(skimage.img_as_ubyte(temp_img))
-        print(images[i].shape, " ", type(images[i])," and ", labels[i])
         i+=1
     return images, labels
 
@@ -313,8 +331,6 @@ imgFilePath=os.path.join(ROOT_PATH, "testImg")
 
 images1, labels1 = load_data(imgFilePath)
 display_images_and_labels(images1,labels1)
-
-
 
 #%%
 
@@ -328,7 +344,9 @@ print ("Predictions : ",predictions)
 print ("Labels      : ",labels1)
 
 #%%
-# calculate accuracy
+
+### Calculate the accuracy for these 5 new images. 
+### For example, if the model predicted 1 out of 5 signs correctly, it's 20% accurate on these new images.
 def calcu_accuracy(labels, answers):
     right_cnt=0.
     for lab, ans in zip(labels , answers):
@@ -340,15 +358,32 @@ print('Accuracy is {:.2%}'.format(calcu_accuracy(labels1, predictions)))
 
 #%%
 
-top_5=tf.nn.top_k(tf.nn.softmax(logits),5)
+### Print out the top five softmax probabilities for the predictions on the German traffic sign images found on the web. 
+### Feel free to use as many code cells as needed.
+softmax_probab=tf.nn.softmax(logits)
+top_5=tf.nn.top_k(softmax_probab,5)
 with tf.Session() as sess:
     saver.restore(sess, tf.train.latest_checkpoint('.'))
-    ans_top_5=sess.run(top_5, feed_dict={x: images1, keep_prob: 1.0})
+    sf_prob,ans_top_5=sess.run((softmax_probab,top_5), feed_dict={x: images1, keep_prob: 1.0})
 ind_top5=ans_top_5.indices
 print("The top5 index is:\n",ind_top5)
 
+#%%
+def getProbability(index1,all_prob):
+    top5_pro=np.zeros_like(index1).astype(np.float64)
+    print("top5_pro:{0}, all_prob:{1}".format(top5_pro.dtype, all_prob.dtype))
+    for row in range(len(index1)):
+        for col in range(len(index1[0])):
+            top5_pro[row][col]=all_prob[row][index1[row][col]]
+    return top5_pro
+
+probs_top5=getProbability(ind_top5,sf_prob)
+np.set_printoptions(precision=4, suppress=True)
+print("Corresponding top5 probability is:\n{}".format(probs_top5))
+
+#%%
 # plotting traffic sign images
-def display_labels_and_ans(imgs,labs,inds):
+def display_labels_and_ans(imgs,labs,inds,probs):
     plt.figure(figsize=(10, 10))
     show_rows=len(labs)
     show_cols=len(inds[0])
@@ -362,14 +397,19 @@ def display_labels_and_ans(imgs,labs,inds):
             image=X_test[y_list.index(inds[i][j])]
             plt.subplot(show_rows,show_cols+1,i*show_cols+i+2+j)
             plt.axis('off')
-            plt.title("top5_ans:{}".format(inds[i][j]))
+#            plt.title("top5_ans:{}".format(inds[i][j]))
+            plt.subplots_adjust(wspace=0, hspace=0.3)
+            plt.text(0, 0, "AnsLabel: {0}\nProb: {1:.4f}".format(inds[i][j], probs[i][j]))
             plt.imshow(image)
     plt.show()
     return
 
-display_labels_and_ans(images1, labels1,ind_top5)
+display_labels_and_ans(images1, labels1,ind_top5,probs_top5)
 
 #%%
+
+### Visualize your network's feature maps here.
+### Feel free to use as many code cells as needed.
 
 # image_input: the test image being fed into the network to produce the feature maps
 # tf_activation: should be a tf variable name used during your training procedure that represents the calculated state of a specific weight layer
@@ -404,6 +444,7 @@ def outputFeatureMap(image_input, tf_activation, activation_min=-1, activation_m
     plt.show()
     return
 
+#%%
 def myOutputFeatureMap(imgs,labs):
     indx=random.randint(0,len(labs)-1)
     label=labs[indx]
@@ -423,3 +464,5 @@ def myOutputFeatureMap(imgs,labs):
 with tf.Session() as sess:
     saver.restore(sess, tf.train.latest_checkpoint('.'))
     myOutputFeatureMap(images1,labels1)
+
+#%%
